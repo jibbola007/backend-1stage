@@ -154,7 +154,12 @@ exports.getAllProfiles = async (req, res) => {
     } = req.query;
 
     // Validate sort_by
-    const validSortFields = ["age", "created_at", "gender_probability"];
+    const sortFieldMap = {
+      "age": "age",
+      "created_at": "createdAt",
+      "gender_probability": "gender_probability"
+    };
+    const validSortFields = Object.keys(sortFieldMap);
     if (sort_by && !validSortFields.includes(sort_by)) {
       return res.status(400).json({
         status: "error",
@@ -224,8 +229,7 @@ exports.getAllProfiles = async (req, res) => {
     const offset = (pageNum - 1) * limitNum;
 
     // Build order clause
-    const validSortFields = ["age", "created_at", "gender_probability"];
-    const sortField = validSortFields.includes(sort_by) ? sort_by : "created_at";
+    const sortField = sortFieldMap[sort_by] || "createdAt";
     const sortDir = sort_order === "asc" ? "ASC" : "DESC";
     const order = [[sortField, sortDir]];
 
