@@ -17,7 +17,7 @@ app.get("/", (req, res) => {
   res.send("API is running...");
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 Profile.sync()
   .then(() => console.log('Profile table synced'))
