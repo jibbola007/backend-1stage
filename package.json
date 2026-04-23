@@ -1,21 +1,30 @@
 {
   "name": "backend-1stage",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Insighta Labs - Advanced demographic profile querying system",
+  "main": "server.js",
   "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "profiles",
+    "api",
+    "filtering",
+    "search",
+    "nlp"
+  ],
+  "author": "Insighta Labs",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.15.0",
     "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.4.1",
-    "uuid": "^13.0.0",
-    "uuidv7": "^1.2.1"
+    "pg": "^8.20.0",
+    "sequelize": "^6.37.8",
+    "uuid": "^13.0.0"
   }
 }

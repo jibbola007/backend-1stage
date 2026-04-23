@@ -1,6 +1,9 @@
 const axios = require("axios");
-const { v4: uuidv4 } = require("uuid");
+const { v7: uuidv7 } = require("uuid");
+const { Op } = require('sequelize');
 const Profile = require("../models/profile");
+const { getCountryName } = require("../utils/countryMapping");
+const NaturalLanguageParser = require("../utils/searchParser");
 
 // Helper: Age group classification
 function getAgeGroup(age) {
@@ -28,7 +31,7 @@ exports.createProfile = async (req, res) => {
     const normalized = name.toLowerCase();
 
     // Check duplicate
-    const existing = await Profile.findOne({ name: normalized });
+    const existing = await Profile.findOne({ where: { name: normalized } });
 
     if (existing) {
       return res.status(200).json({
@@ -71,24 +74,22 @@ exports.createProfile = async (req, res) => {
     )[0];
 
     // Create profile
-    const profile = new Profile({
-      id: uuidv4(), // ⚠️ later switch to UUID v7
+    const profile = await Profile.create({
+      id: uuidv7(), // ✅ UUID v7
       name: normalized,
 
       gender: genderRes.data.gender,
       gender_probability: genderRes.data.probability,
-      sample_size: genderRes.data.count,
 
       age: ageRes.data.age,
       age_group: getAgeGroup(ageRes.data.age),
 
       country_id: topCountry.country_id,
+      country_name: getCountryName(topCountry.country_id),
       country_probability: topCountry.probability,
 
-      created_at: new Date().toISOString()
+      created_at: new Date()
     });
-
-    await profile.save();
 
     return res.status(201).json({
       status: "success",
@@ -110,7 +111,7 @@ exports.createProfile = async (req, res) => {
 // ======================
 exports.getProfile = async (req, res) => {
   try {
-    const profile = await Profile.findOne({ id: req.params.id });
+    const profile = await Profile.findByPk(req.params.id);
 
     if (!profile) {
       return res.status(404).json({
@@ -133,27 +134,100 @@ exports.getProfile = async (req, res) => {
 };
 
 // ======================
-// GET ALL PROFILES (FILTER)
+// GET ALL PROFILES (ADVANCED FILTERING, SORTING, PAGINATION)
 // ======================
 exports.getAllProfiles = async (req, res) => {
   try {
-    const { gender, country_id, age_group } = req.query;
+    // Query parameters
+    const {
+      gender,
+      age_group,
+      country_id,
+      min_age,
+      max_age,
+      min_gender_probability,
+      min_country_probability,
+      sort_by = "created_at",
+      sort_order = "desc",
+      page = 1,
+      limit = 10
+    } = req.query;
 
-    let filter = {};
+    // Build where clause
+    const where = {};
 
-    if (gender) filter.gender = gender.toLowerCase();
-    if (country_id) filter.country_id = country_id.toUpperCase();
-    if (age_group) filter.age_group = age_group.toLowerCase();
+    // Gender filter
+    if (gender) {
+      where.gender = gender.toLowerCase();
+    }
 
-    const profiles = await Profile.find(filter);
+    // Age group filter
+    if (age_group) {
+      where.age_group = age_group.toLowerCase();
+    }
+
+    // Country filter
+    if (country_id) {
+      where.country_id = country_id.toUpperCase();
+    }
+
+    // Min/Max age filters
+    if (min_age || max_age) {
+      where.age = {};
+      if (min_age) {
+        where.age[Op.gte] = parseInt(min_age, 10);
+      }
+      if (max_age) {
+        where.age[Op.lte] = parseInt(max_age, 10);
+      }
+    }
+
+    // Min gender probability filter
+    if (min_gender_probability) {
+      where.gender_probability = {
+        [Op.gte]: parseFloat(min_gender_probability)
+      };
+    }
+
+    // Min country probability filter
+    if (min_country_probability) {
+      where.country_probability = {
+        [Op.gte]: parseFloat(min_country_probability)
+      };
+    }
+
+    // Validate pagination
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Build order clause
+    const validSortFields = ["age", "created_at", "gender_probability"];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : "created_at";
+    const sortDir = sort_order === "asc" ? "ASC" : "DESC";
+    const order = [[sortField, sortDir]];
+
+    // Execute query with pagination and sorting
+    const { count, rows } = await Profile.findAndCountAll({
+      where,
+      order,
+      limit: limitNum,
+      offset
+    });
 
     return res.status(200).json({
       status: "success",
-      count: profiles.length,
-      data: profiles
+      data: rows,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: count,
+        pages: Math.ceil(count / limitNum)
+      }
     });
 
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
       status: "error",
       message: "Server error"
@@ -166,9 +240,9 @@ exports.getAllProfiles = async (req, res) => {
 // ======================
 exports.deleteProfile = async (req, res) => {
   try {
-    const result = await Profile.deleteOne({ id: req.params.id });
+    const deletedCount = await Profile.destroy({ where: { id: req.params.id } });
 
-    if (result.deletedCount === 0) {
+    if (deletedCount === 0) {
       return res.status(404).json({
         status: "error",
         message: "Profile not found"
@@ -178,6 +252,110 @@ exports.deleteProfile = async (req, res) => {
     return res.status(204).send();
 
   } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: "Server error"
+    });
+  }
+};
+
+// ======================
+// NATURAL LANGUAGE SEARCH
+// ======================
+exports.searchProfiles = async (req, res) => {
+  try {
+    const {
+      query,
+      sort_by = "created_at",
+      sort_order = "desc",
+      page = 1,
+      limit = 10
+    } = req.body;
+
+    const searchQuery = query || req.query.q;
+
+    if (!searchQuery || typeof searchQuery !== "string" || searchQuery.trim().length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Field 'query' is required in the request body and must be non-empty"
+      });
+    }
+
+    // Parse natural language query into filters
+    const parser = new NaturalLanguageParser();
+    const parsedFilters = parser.parse(searchQuery);
+
+    // Build Sequelize where clause from parsed data
+    const where = {};
+
+    if (parsedFilters.gender) {
+      where.gender = parsedFilters.gender;
+    }
+
+    if (parsedFilters.min_age || parsedFilters.max_age) {
+      where.age = {};
+      if (parsedFilters.min_age !== undefined) {
+        where.age[Op.gte] = parsedFilters.min_age;
+      }
+      if (parsedFilters.max_age !== undefined) {
+        where.age[Op.lte] = parsedFilters.max_age;
+      }
+    }
+
+    if (parsedFilters.country_id) {
+      where.country_id = parsedFilters.country_id.toUpperCase();
+    }
+
+    if (parsedFilters.min_gender_probability) {
+      where.gender_probability = {
+        [Op.gte]: parsedFilters.min_gender_probability
+      };
+    }
+
+    if (parsedFilters.min_country_probability) {
+      where.country_probability = {
+        [Op.gte]: parsedFilters.min_country_probability
+      };
+    }
+
+    if (parsedFilters.age_group) {
+      where.age_group = parsedFilters.age_group;
+    }
+
+    // Pagination
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const offset = (pageNum - 1) * limitNum;
+
+    // Sorting
+    const validSortFields = ["age", "created_at", "gender_probability"];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : "created_at";
+    const sortDir = sort_order === "asc" ? "ASC" : "DESC";
+    const order = [[sortField, sortDir]];
+
+    // Execute query
+    const { count, rows } = await Profile.findAndCountAll({
+      where,
+      order,
+      limit: limitNum,
+      offset
+    });
+
+    return res.status(200).json({
+      status: "success",
+      query: searchQuery,
+      parsed_filters: parsedFilters,
+      data: rows,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total: count,
+        pages: Math.ceil(count / limitNum)
+      }
+    });
+
+  } catch (error) {
+    console.error(error);
     return res.status(500).json({
       status: "error",
       message: "Server error"

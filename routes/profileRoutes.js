@@ -5,7 +5,8 @@ const {
   createProfile,
   getProfile,
   getAllProfiles,
-  deleteProfile
+  deleteProfile,
+  searchProfiles
 } = require("../controllers/profileController");
 
 // POST
@@ -14,8 +15,11 @@ router.post("/profiles", createProfile);
 // GET ONE
 router.get("/profiles/:id", getProfile);
 
-// GET ALL
+// GET ALL (Advanced filtering, sorting, pagination)
 router.get("/profiles", getAllProfiles);
+
+// SEARCH (Natural Language)
+router.post("/profiles/search", searchProfiles);
 
 // DELETE
 router.delete("/profiles/:id", deleteProfile);
