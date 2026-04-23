@@ -19,7 +19,7 @@ router.get("/profiles/:id", getProfile);
 router.get("/profiles", getAllProfiles);
 
 // SEARCH (Natural Language)
-router.post("/profiles/search", searchProfiles);
+router.get("/profiles/search", searchProfiles);
 
 // DELETE
 router.delete("/profiles/:id", deleteProfile);

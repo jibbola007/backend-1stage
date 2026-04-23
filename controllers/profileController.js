@@ -153,7 +153,22 @@ exports.getAllProfiles = async (req, res) => {
       limit = 10
     } = req.query;
 
-    // Build where clause
+    // Validate sort_by
+    const validSortFields = ["age", "created_at", "gender_probability"];
+    if (sort_by && !validSortFields.includes(sort_by)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid sort_by parameter"
+      });
+    }
+
+    // Validate sort_order
+    if (sort_order && !["asc", "desc"].includes(sort_order.toLowerCase())) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid sort_order parameter"
+      });
+    }
     const where = {};
 
     // Gender filter
@@ -198,7 +213,14 @@ exports.getAllProfiles = async (req, res) => {
 
     // Validate pagination
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const parsedLimit = parseInt(limit, 10) || 10;
+    if (parsedLimit > 50) {
+      return res.status(400).json({
+        status: "error",
+        message: "Limit cannot exceed 50"
+      });
+    }
+    const limitNum = Math.max(1, parsedLimit);
     const offset = (pageNum - 1) * limitNum;
 
     // Build order clause
@@ -221,8 +243,8 @@ exports.getAllProfiles = async (req, res) => {
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total: count,
-        pages: Math.ceil(count / limitNum)
+        total_count: count,
+        total_pages: Math.ceil(count / limitNum)
       }
     });
 
@@ -265,25 +287,50 @@ exports.deleteProfile = async (req, res) => {
 exports.searchProfiles = async (req, res) => {
   try {
     const {
-      query,
+      q: query,
       sort_by = "created_at",
       sort_order = "desc",
       page = 1,
       limit = 10
-    } = req.body;
+    } = req.query;
 
-    const searchQuery = query || req.query.q;
+    // Validate sort_by
+    const validSortFields = ["age", "created_at", "gender_probability"];
+    if (sort_by && !validSortFields.includes(sort_by)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid sort_by parameter"
+      });
+    }
+
+    // Validate sort_order
+    if (sort_order && !["asc", "desc"].includes(sort_order.toLowerCase())) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid sort_order parameter"
+      });
+    }
+
+    const searchQuery = query;
 
     if (!searchQuery || typeof searchQuery !== "string" || searchQuery.trim().length === 0) {
       return res.status(400).json({
         status: "error",
-        message: "Field 'query' is required in the request body and must be non-empty"
+        message: "Query parameter 'q' is required and must be non-empty"
       });
     }
 
     // Parse natural language query into filters
     const parser = new NaturalLanguageParser();
     const parsedFilters = parser.parse(searchQuery);
+
+    // Check if query was interpretable
+    if (Object.keys(parsedFilters).length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Uninterpretable query"
+      });
+    }
 
     // Build Sequelize where clause from parsed data
     const where = {};
@@ -324,7 +371,14 @@ exports.searchProfiles = async (req, res) => {
 
     // Pagination
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const parsedLimit = parseInt(limit, 10) || 10;
+    if (parsedLimit > 50) {
+      return res.status(400).json({
+        status: "error",
+        message: "Limit cannot exceed 50"
+      });
+    }
+    const limitNum = Math.max(1, parsedLimit);
     const offset = (pageNum - 1) * limitNum;
 
     // Sorting
@@ -349,8 +403,8 @@ exports.searchProfiles = async (req, res) => {
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total: count,
-        pages: Math.ceil(count / limitNum)
+        total_count: count,
+        total_pages: Math.ceil(count / limitNum)
       }
     });
 

@@ -33,16 +33,16 @@ async function testAPIs() {
     console.log(`   Names: ${test3.data.data.map(p => p.name).join(", ")}`);
 
     // Test 4: Natural language search
-    console.log("✅ Test 4: POST /profiles/search (Natural language: 'young males')");
-    const test4 = await axios.post(`${API_BASE}/profiles/search`, { query: 'young males' }, { params: { limit: 3 } });
+    console.log("✅ Test 4: GET /profiles/search (Natural language: 'young males')");
+    const test4 = await axios.get(`${API_BASE}/profiles/search?q=young+males&limit=3`);
     console.log(`   Status: ${test4.data.status}`);
     console.log(`   Query: ${test4.data.query}`);
     console.log(`   Parsed Filters:`, test4.data.parsed_filters);
     console.log(`   Results: ${test4.data.data.length}`);
 
     // Test 5: Search with country
-    console.log("\n✅ Test 5: POST /profiles/search (Search with country)");
-    const test5 = await axios.post(`${API_BASE}/profiles/search`, { query: 'adults from Nigeria' }, { params: { limit: 2 } });
+    console.log("\n✅ Test 5: GET /profiles/search (Search with country)");
+    const test5 = await axios.get(`${API_BASE}/profiles/search?q=adults+from+Nigeria&limit=2`);
     console.log(`   Status: ${test5.data.status}`);
     console.log(`   Query: ${test5.data.query}`);
     console.log(`   Parsed Filters:`, test5.data.parsed_filters);

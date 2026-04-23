@@ -148,19 +148,19 @@ GET /api/profiles?gender=female&age_group=teenager&country_id=KE&min_gender_prob
 }
 ```
 
-### 2. POST /api/profiles/search - Natural Language Search
+### 2. GET /api/profiles/search - Natural Language Search
 
 Search profiles using natural language queries.
 
-#### Request Body
+#### Query Parameters
 
-| Field | Type | Description | Example |
-|-------|------|-------------|---------|
-| `query` | string | **REQUIRED** Natural language query | `"young males from Nigeria"` |
-| `sort_by` | string | Sort field (same as /profiles) | `"age"` |
-| `sort_order` | string | Sort order: `asc` or `desc` | `"asc"` |
-| `page` | number | Page number | `1` |
-| `limit` | number | Results per page (max 50) | `25` |
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `q` | string | **REQUIRED** Natural language query | `?q=young males from Nigeria` |
+| `sort_by` | string | Sort field (same as /profiles) | `?sort_by=age` |
+| `sort_order` | string | Sort order: `asc` or `desc` | `?sort_order=asc` |
+| `page` | number | Page number | `?page=1` |
+| `limit` | number | Results per page (max 50) | `?limit=25` |
 
 #### Natural Language Parser Guide
 
@@ -197,24 +197,19 @@ The search endpoint parses natural language queries into structured filters. **N
 
 ```bash
 # Search for young females
-POST /api/profiles/search
-Body: { "query": "young females" }
+GET /api/profiles/search?q=young females
 
 # Search for adults from Nigeria with high confidence
-POST /api/profiles/search
-Body: { "query": "adult people from Nigeria with 85% confidence" }
+GET /api/profiles/search?q=adult people from Nigeria with 85% confidence
 
 # Search for teenagers aged 15-19
-POST /api/profiles/search
-Body: { "query": "teenagers aged 15 to 19" }
+GET /api/profiles/search?q=teenagers aged 15 to 19
 
 # Complex query with multiple conditions
-POST /api/profiles/search
-Body: { "query": "young adult males from Kenya with 90% probability" }
+GET /api/profiles/search?q=young adult males from Kenya with 90% probability
 
 # With pagination and sorting
-POST /api/profiles/search
-Body: { "query": "seniors from South Africa", "sort_by": "age", "sort_order": "desc", "page": 1, "limit": 20 }
+GET /api/profiles/search?q=seniors from South Africa&sort_by=age&sort_order=desc&page=1&limit=20
 ```
 
 #### Response
